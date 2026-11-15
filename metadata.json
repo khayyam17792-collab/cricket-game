@@ -1,0 +1,8 @@
+{
+  "name": "Night Stadium Super Over",
+  "description": "A 3D cricket Super Over game set under glowing stadium floodlights with realistic ball physics, directional batting, and timing-based shot outcomes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
