@@ -1,5 +1,6 @@
 import 'dotenv/config';
-import express from 'express';
+import express, { type NextFunction, type Request, type Response } from 'express';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
@@ -8,16 +9,33 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = Number(process.env.PORT) || 3000;
-const isProd = process.env.NODE_ENV === 'production';
+const distDir = path.resolve(__dirname, 'dist');
+const indexHtmlPath = path.join(distDir, 'index.html');
+const hasBuiltDist = fs.existsSync(indexHtmlPath);
+const runningUnderTsx = process.execArgv.some((arg) => arg.includes('tsx'));
+const isExplicitDev =
+  process.env.NODE_ENV === 'development' ||
+  process.env.npm_lifecycle_event === 'dev' ||
+  runningUnderTsx;
+const isProd =
+  process.env.NODE_ENV === 'production' || (hasBuiltDist && !isExplicitDev);
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
-    },
-  },
-});
+let cachedAiClient: GoogleGenAI | null = null;
+function getAiClient(): GoogleGenAI | null {
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  if (!apiKey) return null;
+  if (!cachedAiClient) {
+    cachedAiClient = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
+  }
+  return cachedAiClient;
+}
 
 const ALLOWED_DELIVERIES = [
   'In-swinging Yorker',
@@ -99,7 +117,8 @@ async function generateWithModelFallback(options: {
   responseMimeType?: string;
   responseSchema?: unknown;
 }): Promise<string | null> {
-  if (!process.env.GEMINI_API_KEY) return null;
+  const ai = getAiClient();
+  if (!ai) return null;
 
   const tryModel = async (
     model: 'gemini-4-hydrogen' | 'gemini-3.1-flash-lite',
@@ -280,7 +299,12 @@ function buildFallbackCommentary(b: CommentaryRequestBody): string {
 
 async function createServer() {
   const app = express();
-  app.use(express.json());
+  app.disable('x-powered-by');
+  app.use(express.json({ limit: '1mb' }));
+
+  app.get(['/healthz', '/api/health'], (_req, res) => {
+    res.status(200).json({ ok: true, mode: isProd ? 'production' : 'development' });
+  });
 
   // 1. AI Bowler Strategy Endpoint (Structured JSON via Gemini)
   app.post('/api/bowler-strategy', async (req, res) => {
@@ -493,11 +517,23 @@ async function createServer() {
     }
   });
 
-  if (isProd) {
-    const distDir = path.resolve(__dirname, 'dist');
-    app.use(express.static(distDir));
-    app.get('*splat', (_req, res) => {
-      res.sendFile(path.join(distDir, 'index.html'));
+  if (isProd && fs.existsSync(indexHtmlPath)) {
+    app.use(express.static(distDir, { index: 'index.html' }));
+    app.use((req, res, next) => {
+      if (req.method !== 'GET' || req.path.startsWith('/api/')) {
+        next();
+        return;
+      }
+      if (req.path.startsWith('/assets/')) {
+        res.status(404).end();
+        return;
+      }
+      res.sendFile(indexHtmlPath, (err) => {
+        if (err && !res.headersSent) {
+          console.error('Failed to send index.html:', err);
+          res.status(500).send('Unable to load application.');
+        }
+      });
     });
   } else {
     const { createServer: createViteServer } = await import('vite');
@@ -508,10 +544,23 @@ async function createServer() {
     app.use(vite.middlewares);
   }
 
+  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    console.error('Unhandled Express error:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server listening on http://0.0.0.0:${PORT}`);
+    console.log(
+      `Server listening on http://0.0.0.0:${PORT} (${isProd ? 'production' : 'development'})`,
+    );
   });
 }
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled promise rejection:', reason);
+});
 
 createServer().catch((err) => {
   console.error('Failed to start server:', err);
