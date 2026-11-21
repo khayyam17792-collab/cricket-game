@@ -1,5 +1,5 @@
 import { CheckCircle2, Eye, ShieldAlert, XCircle } from 'lucide-react';
-import type { HudSnapshot } from '../types/game';
+import type { HudSnapshot } from '../../types/game';
 
 interface DrsOverlayProps {
   hud: HudSnapshot;

@@ -1,20 +1,24 @@
-import { Coins, Shield, Shirt, Swords, Trophy } from 'lucide-react';
+import { Coins, LogIn, LogOut, Shield, Shirt, Swords, Trophy } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type {
   InningsRole,
   MatchOvers,
   PlayerCustomization,
   TossCall,
-} from '../types/game';
+} from '../../types/game';
 
 interface TossModalProps {
   oversCount: MatchOvers;
   playerProfile: PlayerCustomization;
   leaderboardCount: number;
+  userDisplayName: string | null;
+  authBusy: boolean;
   onChangeOvers: (overs: MatchOvers) => void;
   onCompleteToss: (inningsRole: InningsRole) => void;
   onOpenCustomizer: () => void;
   onOpenLeaderboard: () => void;
+  onSignIn: () => void;
+  onSignOut: () => void;
 }
 
 type TossStep = 'pick' | 'spinning' | 'won' | 'lost';
@@ -23,10 +27,14 @@ export function TossModal({
   oversCount,
   playerProfile,
   leaderboardCount,
+  userDisplayName,
+  authBusy,
   onChangeOvers,
   onCompleteToss,
   onOpenCustomizer,
   onOpenLeaderboard,
+  onSignIn,
+  onSignOut,
 }: TossModalProps) {
   const [step, setStep] = useState<TossStep>('pick');
   const [playerCall, setPlayerCall] = useState<TossCall | null>(null);
@@ -159,29 +167,62 @@ export function TossModal({
               </button>
             </div>
 
-            {/* Quick Kit & Leaderboard Access */}
-            <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/10 pt-3.5">
-              <button
-                type="button"
-                onClick={onOpenCustomizer}
-                className="flex items-center justify-center gap-1.5 rounded-lg border border-white/12 bg-slate-900/90 px-3 py-2 text-[11px] font-semibold text-slate-200 transition-colors hover:border-amber-400/50 hover:bg-slate-800 cursor-pointer truncate"
-              >
-                <Shirt className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                <span className="truncate">
-                  {playerProfile.playerName || 'STRIKER'} #{playerProfile.jerseyNumber || '56'}
-                </span>
-              </button>
+            {/* Quick Kit, Leaderboard & Account Sync */}
+            <div className="mt-4 space-y-2 border-t border-white/10 pt-3.5">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={onOpenCustomizer}
+                  className="flex items-center justify-center gap-1.5 rounded-lg border border-white/12 bg-slate-900/90 px-3 py-2 text-[11px] font-semibold text-slate-200 transition-colors hover:border-amber-400/50 hover:bg-slate-800 cursor-pointer truncate"
+                >
+                  <Shirt className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                  <span className="truncate">
+                    {playerProfile.playerName || 'STRIKER'} #{playerProfile.jerseyNumber || '56'}
+                  </span>
+                </button>
 
-              <button
-                type="button"
-                onClick={onOpenLeaderboard}
-                className="flex items-center justify-center gap-1.5 rounded-lg border border-white/12 bg-slate-900/90 px-3 py-2 text-[11px] font-semibold text-slate-200 transition-colors hover:border-amber-400/50 hover:bg-slate-800 cursor-pointer truncate"
-              >
-                <Trophy className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-                <span className="truncate">
-                  Leaderboard{leaderboardCount > 0 ? ` (${leaderboardCount})` : ''}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  onClick={onOpenLeaderboard}
+                  className="flex items-center justify-center gap-1.5 rounded-lg border border-white/12 bg-slate-900/90 px-3 py-2 text-[11px] font-semibold text-slate-200 transition-colors hover:border-amber-400/50 hover:bg-slate-800 cursor-pointer truncate"
+                >
+                  <Trophy className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                  <span className="truncate">
+                    Leaderboard{leaderboardCount > 0 ? ` (${leaderboardCount})` : ''}
+                  </span>
+                </button>
+              </div>
+
+              {userDisplayName ? (
+                <div className="flex items-center justify-between rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-3 py-1.5 text-[11px]">
+                  <span className="font-semibold text-emerald-300 truncate">
+                    Signed in as {userDisplayName}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={authBusy}
+                    onClick={onSignOut}
+                    className="ml-2 flex shrink-0 items-center gap-1 font-semibold text-slate-300 hover:text-white cursor-pointer"
+                  >
+                    <LogOut className="h-3 w-3" />
+                    <span>Sign out</span>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  disabled={authBusy}
+                  onClick={onSignIn}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/12 bg-slate-900/90 px-3 py-2 text-[11px] font-semibold text-slate-200 transition-colors hover:border-emerald-400/40 hover:bg-slate-800 cursor-pointer"
+                >
+                  <LogIn className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>
+                    {authBusy
+                      ? 'Connecting account...'
+                      : 'Sign in with Google to save scores'}
+                  </span>
+                </button>
+              )}
             </div>
           </>
         )}

@@ -1,18 +1,26 @@
-import { Trash2, Trophy, X } from 'lucide-react';
-import { LeaderboardEntry, TEAM_KITS } from '../types/game';
+import { LogIn, Trash2, Trophy, X } from 'lucide-react';
+import { LeaderboardEntry, TEAM_KITS } from '../../types/game';
 
 interface LeaderboardModalProps {
   isOpen: boolean;
   entries: LeaderboardEntry[];
+  isSignedIn: boolean;
+  currentUserUid: string | null;
   onClose: () => void;
-  onClear: () => void;
+  onClearLocal: () => void;
+  onDeleteCloudEntry: (entryId: string) => void;
+  onSignIn: () => void;
 }
 
 export function LeaderboardModal({
   isOpen,
   entries,
+  isSignedIn,
+  currentUserUid,
   onClose,
-  onClear,
+  onClearLocal,
+  onDeleteCloudEntry,
+  onSignIn,
 }: LeaderboardModalProps) {
   if (!isOpen) return null;
 
@@ -32,7 +40,9 @@ export function LeaderboardModal({
             </div>
             <div>
               <div className="text-[11px] font-semibold tracking-wider text-amber-400">
-                DEVFEST STAGE HALL OF FAME
+                {isSignedIn
+                  ? 'CLOUD HALL OF FAME'
+                  : 'LOCAL STAGE HALL OF FAME'}
               </div>
               <h2 className="font-display text-2xl font-extrabold tracking-wide text-white">
                 TOP SCORERS LEADERBOARD
@@ -52,13 +62,31 @@ export function LeaderboardModal({
 
         {/* Entries Table */}
         <div className="flex-1 overflow-y-auto px-5 py-4">
+          {!isSignedIn && (
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-2.5 text-xs">
+              <span className="text-slate-200">
+                Sign in with Google to sync your player kit and post to the
+                shared leaderboard.
+              </span>
+              <button
+                type="button"
+                onClick={onSignIn}
+                className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 font-semibold text-slate-950 transition-colors hover:bg-emerald-400 cursor-pointer"
+              >
+                <LogIn className="h-3.5 w-3.5" />
+                <span>Sign In</span>
+              </button>
+            </div>
+          )}
+
           {entries.length === 0 ? (
             <div className="rounded-xl border border-white/10 bg-slate-900/60 px-6 py-10 text-center">
               <div className="font-display text-xl font-bold text-slate-200">
                 NO SCORES RECORDED YET
               </div>
               <p className="mt-1 text-xs text-slate-400">
-                Complete a 6-ball Super Over innings to post your score on the stage leaderboard.
+                Complete a 2-innings match to post your score on the stage
+                leaderboard.
               </p>
             </div>
           ) : (
@@ -72,11 +100,18 @@ export function LeaderboardModal({
                     <th className="px-3 py-2.5 text-right">BALLS</th>
                     <th className="px-3 py-2.5 text-right">6S</th>
                     <th className="px-3 py-2.5 text-right">RESULT</th>
+                    {isSignedIn && <th className="px-2 py-2.5" />}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/8">
                   {entries.map((entry, idx) => {
-                    const kit = TEAM_KITS[entry.kitId] ?? TEAM_KITS['green-gold'];
+                    const kit =
+                      TEAM_KITS[entry.kitId] ?? TEAM_KITS['green-gold'];
+                    const canDelete =
+                      isSignedIn &&
+                      currentUserUid !== null &&
+                      entry.uid === currentUserUid;
+
                     return (
                       <tr
                         key={entry.id}
@@ -131,6 +166,20 @@ export function LeaderboardModal({
                                 : 'SHORT'}
                           </span>
                         </td>
+                        {isSignedIn && (
+                          <td className="px-2 py-2.5 text-right">
+                            {canDelete && (
+                              <button
+                                type="button"
+                                onClick={() => onDeleteCloudEntry(entry.id)}
+                                aria-label="Remove entry"
+                                className="inline-flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-rose-500/15 hover:text-rose-300 cursor-pointer"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -142,14 +191,14 @@ export function LeaderboardModal({
 
         {/* Footer */}
         <div className="flex items-center justify-between border-t border-white/10 px-5 py-3.5">
-          {entries.length > 0 ? (
+          {!isSignedIn && entries.length > 0 ? (
             <button
               type="button"
-              onClick={onClear}
+              onClick={onClearLocal}
               className="flex items-center gap-1.5 rounded-lg border border-white/12 px-3 py-2 text-xs font-semibold text-slate-400 transition-colors hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-300 cursor-pointer"
             >
               <Trash2 className="h-3.5 w-3.5" />
-              <span>Clear Board</span>
+              <span>Clear Local Board</span>
             </button>
           ) : (
             <div />

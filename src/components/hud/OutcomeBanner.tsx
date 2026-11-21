@@ -1,5 +1,5 @@
 import { FastForward, Mic, RotateCcw, Trophy } from 'lucide-react';
-import type { CommentaryStyle, HudSnapshot } from '../types/game';
+import type { CommentaryStyle, HudSnapshot } from '../../types/game';
 
 interface OutcomeBannerProps {
   hud: HudSnapshot;

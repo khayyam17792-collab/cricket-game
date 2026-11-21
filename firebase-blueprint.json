@@ -1,0 +1,125 @@
+{
+  "entities": {
+    "PlayerProfile": {
+      "title": "PlayerProfile",
+      "description": "Saved batter customization profile (display name, jersey number, and team kit) owned by an authenticated user.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Firebase Auth UID of the profile owner."
+        },
+        "playerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12,
+          "pattern": "^[A-Z0-9 .'-]{1,12}$",
+          "description": "Player name printed on the jersey back."
+        },
+        "jerseyNumber": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 3,
+          "pattern": "^[0-9]{1,3}$",
+          "description": "1 to 3 digit jersey number."
+        },
+        "kitId": {
+          "type": "string",
+          "enum": ["green-gold", "blue-orange", "yellow-green", "black-silver"],
+          "description": "Selected team kit palette identifier."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the profile was last updated."
+        }
+      },
+      "required": ["uid", "playerName", "jerseyNumber", "kitId", "updatedAt"]
+    },
+    "LeaderboardScore": {
+      "title": "LeaderboardScore",
+      "description": "Immutable match score entry recorded after completing a 2-innings match.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Firebase Auth UID of the player who posted the score."
+        },
+        "playerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12,
+          "pattern": "^[A-Z0-9 .'-]{1,12}$",
+          "description": "Player name displayed on the leaderboard."
+        },
+        "jerseyNumber": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 3,
+          "pattern": "^[0-9]{1,3}$",
+          "description": "Player jersey number."
+        },
+        "kitId": {
+          "type": "string",
+          "enum": ["green-gold", "blue-orange", "yellow-green", "black-silver"],
+          "description": "Selected team kit palette identifier."
+        },
+        "runs": {
+          "type": "integer",
+          "description": "Total runs scored in the user's batting innings."
+        },
+        "ballsFaced": {
+          "type": "integer",
+          "description": "Balls faced in the innings."
+        },
+        "sixesHit": {
+          "type": "integer",
+          "description": "Number of sixes hit in the innings."
+        },
+        "wicketsLost": {
+          "type": "integer",
+          "description": "Number of wickets lost in the innings."
+        },
+        "inningsRole": {
+          "type": "string",
+          "enum": ["batting", "bowling"],
+          "description": "Role for the recorded innings."
+        },
+        "won": {
+          "type": "boolean",
+          "description": "Whether the player won the 2-innings match."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the score was recorded."
+        }
+      },
+      "required": [
+        "uid",
+        "playerName",
+        "jerseyNumber",
+        "kitId",
+        "runs",
+        "ballsFaced",
+        "sixesHit",
+        "wicketsLost",
+        "inningsRole",
+        "won",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/PlayerProfile" },
+      "description": "Owner-only player kit customization profile."
+    },
+    "/leaderboard/{scoreId}": {
+      "schema": { "$ref": "#/entities/LeaderboardScore" },
+      "description": "Global match leaderboard scores (immutable after creation, no PII)."
+    }
+  }
+}

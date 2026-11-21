@@ -1,5 +1,5 @@
 import { ArrowRightLeft, Play, Trophy } from 'lucide-react';
-import type { HudSnapshot } from '../types/game';
+import type { HudSnapshot } from '../../types/game';
 
 interface InningsBreakModalProps {
   hud: HudSnapshot;

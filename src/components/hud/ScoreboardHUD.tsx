@@ -1,5 +1,5 @@
 import { Camera, RotateCcw, Volume2, VolumeX } from 'lucide-react';
-import type { CameraMode, HudSnapshot } from '../types/game';
+import type { CameraMode, HudSnapshot } from '../../types/game';
 
 interface ScoreboardHUDProps {
   hud: HudSnapshot;

@@ -4,7 +4,7 @@ import {
   PlayerCustomization,
   TEAM_KITS,
   TeamKitId,
-} from '../types/game';
+} from '../../types/game';
 
 interface CustomizerModalProps {
   profile: PlayerCustomization;
@@ -12,7 +12,7 @@ interface CustomizerModalProps {
   leaderboardCount: number;
   onChangeProfile: (profile: PlayerCustomization) => void;
   onChangeCommentaryStyle: (style: CommentaryStyle) => void;
-  onEnterStadium: () => void;
+  onEnterStadium: (finalProfile: PlayerCustomization) => void;
   onOpenLeaderboard: () => void;
 }
 
@@ -55,7 +55,7 @@ export function CustomizerModal({
       kitId: profile.kitId,
     };
     onChangeProfile(finalProfile);
-    onEnterStadium();
+    onEnterStadium(finalProfile);
   };
 
   return (

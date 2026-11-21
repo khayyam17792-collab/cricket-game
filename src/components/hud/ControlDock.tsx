@@ -11,7 +11,7 @@ import type {
   BowlingDeliveryType,
   HudSnapshot,
   ShotDirection,
-} from '../types/game';
+} from '../../types/game';
 import { CommentaryTicker } from './CommentaryTicker';
 
 interface ControlDockProps {

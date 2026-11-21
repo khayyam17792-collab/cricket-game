@@ -7,7 +7,7 @@ import type {
   CommentaryStyle,
   InningsRole,
   MatchOvers,
-} from '../types/game';
+} from '../../types/game';
 
 interface PreOverSetupModalProps {
   inningsNumber: 1 | 2;

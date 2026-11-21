@@ -1,4 +1,4 @@
-import type { BowlingAimCursorHud } from '../types/game';
+import type { BowlingAimCursorHud } from '../../types/game';
 
 interface PitchAimLabelProps {
   aimCursor: BowlingAimCursorHud;

@@ -1,0 +1,142 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidKitId(kitId) {
+      return kitId is string && kitId in ['green-gold', 'blue-orange', 'yellow-green', 'black-silver'];
+    }
+
+    function isValidPlayerProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'playerName', 'jerseyNumber', 'kitId', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'playerName', 'jerseyNumber', 'kitId', 'updatedAt'])
+        && data.uid is string
+        && data.uid == userId
+        && data.uid.size() >= 1
+        && data.uid.size() <= 128
+        && data.playerName is string
+        && data.playerName.size() >= 1
+        && data.playerName.size() <= 12
+        && data.playerName.matches("^[A-Z0-9 .'-]{1,12}$")
+        && data.jerseyNumber is string
+        && data.jerseyNumber.size() >= 1
+        && data.jerseyNumber.size() <= 3
+        && data.jerseyNumber.matches('^[0-9]{1,3}$')
+        && isValidKitId(data.kitId)
+        && data.updatedAt == request.time;
+    }
+
+    function isValidLeaderboardScore(data) {
+      return data.keys().hasAll([
+          'uid',
+          'playerName',
+          'jerseyNumber',
+          'kitId',
+          'runs',
+          'ballsFaced',
+          'sixesHit',
+          'wicketsLost',
+          'inningsRole',
+          'won',
+          'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'uid',
+          'playerName',
+          'jerseyNumber',
+          'kitId',
+          'runs',
+          'ballsFaced',
+          'sixesHit',
+          'wicketsLost',
+          'inningsRole',
+          'won',
+          'createdAt'
+        ])
+        && data.uid is string
+        && data.uid == request.auth.uid
+        && data.uid.size() >= 1
+        && data.uid.size() <= 128
+        && data.playerName is string
+        && data.playerName.size() >= 1
+        && data.playerName.size() <= 12
+        && data.playerName.matches("^[A-Z0-9 .'-]{1,12}$")
+        && data.jerseyNumber is string
+        && data.jerseyNumber.size() >= 1
+        && data.jerseyNumber.size() <= 3
+        && data.jerseyNumber.matches('^[0-9]{1,3}$')
+        && isValidKitId(data.kitId)
+        && data.runs is int
+        && data.runs >= 0
+        && data.runs <= 200
+        && data.ballsFaced is int
+        && data.ballsFaced >= 0
+        && data.ballsFaced <= 12
+        && data.sixesHit is int
+        && data.sixesHit >= 0
+        && data.sixesHit <= 12
+        && data.wicketsLost is int
+        && data.wicketsLost >= 0
+        && data.wicketsLost <= 3
+        && data.inningsRole is string
+        && data.inningsRole in ['batting', 'bowling']
+        && data.won is bool
+        && data.createdAt == request.time;
+    }
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidPlayerProfile(incoming(), userId);
+      allow update: if isValidId(userId)
+        && isOwner(userId)
+        && isValidPlayerProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'playerName',
+          'jerseyNumber',
+          'kitId',
+          'updatedAt'
+        ]);
+      allow delete: if isValidId(userId) && isOwner(userId);
+    }
+
+    match /leaderboard/{scoreId} {
+      allow get: if isValidId(scoreId) && resource.data.runs is int && resource.data.runs >= 0;
+      allow list: if resource.data.runs is int && resource.data.runs >= 0;
+      allow create: if isValidId(scoreId)
+        && isSignedIn()
+        && isValidLeaderboardScore(incoming());
+      allow update: if false;
+      allow delete: if isValidId(scoreId)
+        && isSignedIn()
+        && existing().uid == request.auth.uid;
+    }
+  }
+}

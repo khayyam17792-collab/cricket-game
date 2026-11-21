@@ -11,13 +11,33 @@ A 3D two-innings cricket game set in a floodlit night stadium, built with **Thre
 - **Interactive Bowling Aim & AI Batter**: Aim deliveries directly on the pitch using mouse/touch raycasting or `WASD` / Arrow keys, choose delivery types (`Fast Yorker`, `Outswinger`, `Bouncer`, `Slower Cutter`), and time the release bar.
 - **3D Hawk-Eye DRS Reviews**: Challenge close LBW or caught-behind decisions with animated 3D ball-tracking projections (`Pitching`, `Impact`, `Wickets`) and UltraEdge feedback.
 - **Dynamic Camera, Synthesized Stadium Audio & Fireworks**: Switch between `Batter View`, `Bowler View`, and `Broadcast Side View` (`C`), follow boundaries smoothly across the ground, hear Web Audio API bat cracks, stump rattles, and crowd roars, and trigger 3D victory fireworks.
-- **Live AI Commentary & Leaderboard**: Supports `"TV Broadcast English"` and `"Funny Roman Urdu / Desi Street Cricket"` styles with automatic Gemini fallback, plus a `localStorage` Top Scorers Leaderboard.
+- **Live AI Commentary & Leaderboard**: Supports `"TV Broadcast English"` and `"Funny Roman Urdu / Desi Street Cricket"` styles with automatic Gemini fallback, plus Firebase Auth + Firestore cloud sync (with `localStorage` fallback) for player kits and the Top Scorers Leaderboard.
 
 ## Controls
 
 - **Batting**: `Left` / `Up` / `Right` (or `A` / `W` / `D`) to pick shot direction; `Space` to start delivery and swing.
 - **Bowling**: Move mouse over the pitch or use `WASD` / Arrow keys to aim the pitch reticle; `Space` to release the ball.
 - **Camera**: Press `C` or click the top-right camera button to cycle views.
+
+## Project Structure
+
+```text
+├── public/                 # Static assets (favicon.ico, favicon.svg)
+├── server/                 # Modular Express backend
+│   ├── config/gemini.ts    # Lazy Gemini client & model fallback helper
+│   ├── routes/             # API route modules (cricketRoutes.ts)
+│   ├── services/           # Deterministic strategy/commentary fallbacks
+│   └── app.ts              # Express app setup, health/favicon routes, Vite/static serving
+├── server.ts               # Root Node 22+ server entrypoint
+└── src/
+    ├── audio/              # Web Audio API stadium & bat-ball sound engine
+    ├── components/         # UI organized into common/, hud/, and modals/
+    ├── hooks/              # Custom React hooks (useCricketControls, useFirebaseSync)
+    ├── lib/                # Firebase SDK initialization & error helpers
+    ├── services/           # Frontend Gemini API & Firestore/localStorage services
+    ├── three/              # Three.js stadium, rigged athletes, ball & DRS physics
+    └── types/              # Shared TypeScript game state & customization types
+```
 
 ## Local Setup
 

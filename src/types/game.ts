@@ -118,6 +118,7 @@ export interface DrsVerdictData {
 
 export interface LeaderboardEntry {
   id: string;
+  uid?: string;
   playerName: string;
   jerseyNumber: string;
   kitId: TeamKitId;

@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { soundEngine } from './audio/soundEngine';
-import { ControlDock } from './components/ControlDock';
-import { CustomizerModal } from './components/CustomizerModal';
-import { DrsOverlay } from './components/DrsOverlay';
-import { InningsBreakModal } from './components/InningsBreakModal';
-import { LeaderboardModal } from './components/LeaderboardModal';
-import { OutcomeBanner } from './components/OutcomeBanner';
-import { PitchAimLabel } from './components/PitchAimLabel';
-import { PreOverSetupModal } from './components/PreOverSetupModal';
-import { ScoreboardHUD } from './components/ScoreboardHUD';
-import { TossModal } from './components/TossModal';
+import {
+  ControlDock,
+  CustomizerModal,
+  DrsOverlay,
+  InningsBreakModal,
+  LeaderboardModal,
+  OutcomeBanner,
+  PitchAimLabel,
+  PreOverSetupModal,
+  ScoreboardHUD,
+  TossModal,
+} from './components';
+import { useCricketControls } from './hooks/useCricketControls';
+import { useFirebaseSync } from './hooks/useFirebaseSync';
 import {
   buildLocalFallbackBatterStrategy,
   buildLocalFallbackCommentary,
@@ -18,11 +22,6 @@ import {
   fetchAiBowlerStrategy,
   fetchLiveCommentary,
 } from './services/geminiCricketService';
-import {
-  clearLeaderboard,
-  getLeaderboard,
-  saveLeaderboardEntry,
-} from './services/leaderboardService';
 import { CricketSceneEngine } from './three/CricketSceneEngine';
 import {
   BowlerArchetype,
@@ -33,7 +32,6 @@ import {
   CommentaryStyle,
   HudSnapshot,
   InningsRole,
-  LeaderboardEntry,
   MatchOvers,
   PlayerCustomization,
   ShotDirection,
@@ -107,8 +105,6 @@ export default function App() {
   const [hud, setHud] = useState<HudSnapshot>(INITIAL_HUD);
   totalBallsRef.current = hud.totalBalls;
 
-  const [playerProfile, setPlayerProfile] =
-    useState<PlayerCustomization>(DEFAULT_PROFILE);
   const [customizerOpen, setCustomizerOpen] = useState(false);
   const [muted, setMuted] = useState(false);
   const [commentaryStyle, setCommentaryStyle] =
@@ -116,20 +112,52 @@ export default function App() {
   const [commentary, setCommentary] = useState<string>('');
   const [commentaryLoading, setCommentaryLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
-  const [leaderboardEntries, setLeaderboardEntries] = useState<
-    LeaderboardEntry[]
-  >(() => getLeaderboard());
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+
+  const handleApplyCloudProfile = useCallback(
+    (cloudProfile: PlayerCustomization) => {
+      engineRef.current?.setPlayerCustomization(cloudProfile);
+    },
+    [],
+  );
+
+  const {
+    user,
+    authBusy,
+    playerProfile,
+    setPlayerProfile,
+    leaderboardEntries,
+    signIn,
+    signOutUser,
+    syncProfileToCloud,
+    recordMatchScore,
+    clearLocalBoard,
+    removeCloudEntry,
+  } = useFirebaseSync({
+    defaultProfile: DEFAULT_PROFILE,
+    onApplyCloudProfile: handleApplyCloudProfile,
+  });
 
   const handleChangeCommentaryStyle = useCallback((style: CommentaryStyle) => {
     commentaryStyleRef.current = style;
     setCommentaryStyle(style);
   }, []);
 
-  const handleChangeProfile = useCallback((profile: PlayerCustomization) => {
-    setPlayerProfile(profile);
-    engineRef.current?.setPlayerCustomization(profile);
-  }, []);
+  const handleChangeProfile = useCallback(
+    (profile: PlayerCustomization) => {
+      setPlayerProfile(profile);
+      engineRef.current?.setPlayerCustomization(profile);
+    },
+    [setPlayerProfile],
+  );
+
+  const handleSaveKitAndClose = useCallback(
+    async (finalProfile: PlayerCustomization) => {
+      setCustomizerOpen(false);
+      await syncProfileToCloud(finalProfile);
+    },
+    [syncProfileToCloud],
+  );
 
   const handleChangeOvers = useCallback((overs: MatchOvers) => {
     engineRef.current?.setMatchOvers(overs);
@@ -144,6 +172,13 @@ export default function App() {
       return { ...prev, cameraMode: nextMode };
     });
   }, []);
+
+  // Global keyboard controls (WASD / Arrow Keys, Spacebar, C for camera)
+  useCricketControls({
+    engineRef,
+    inningsRole: hud.inningsRole,
+    onCycleCamera: handleCycleCamera,
+  });
 
   // Initialize Three.js WebGL Engine once in isolated mount container
   useEffect(() => {
@@ -237,7 +272,7 @@ export default function App() {
     };
   }, []);
 
-  // Auto-save user's batting performance to localStorage leaderboard once per completed 2-innings match
+  // Auto-save user's batting performance to Firestore (when signed in) and localStorage once per match
   useEffect(() => {
     if (hud.phase === 'gameover' && !savedMatchRef.current) {
       savedMatchRef.current = true;
@@ -259,7 +294,7 @@ export default function App() {
               inningsRole: hud.inningsRole,
             };
 
-      const updated = saveLeaderboardEntry({
+      recordMatchScore({
         playerName: hud.playerProfile.playerName || 'STRIKER',
         jerseyNumber: hud.playerProfile.jerseyNumber || '56',
         kitId: hud.playerProfile.kitId,
@@ -270,7 +305,6 @@ export default function App() {
         inningsRole: battingSummary.inningsRole,
         won: hud.matchResult === 'won',
       });
-      setLeaderboardEntries(updated);
     } else if (
       hud.phase !== 'gameover' &&
       hud.inningsNumber === 1 &&
@@ -289,109 +323,8 @@ export default function App() {
     hud.wickets,
     hud.inningsRole,
     hud.matchResult,
+    recordMatchScore,
   ]);
-
-  // Global keyboard controls (WASD / Arrow Keys, Spacebar, C for camera)
-  const inningsRoleRef = useRef<InningsRole>('batting');
-  inningsRoleRef.current = hud.inningsRole;
-  const heldAimKeysRef = useRef({
-    left: false,
-    right: false,
-    up: false,
-    down: false,
-  });
-
-  useEffect(() => {
-    const syncAim = () => {
-      engineRef.current?.setBowlingAimInput(heldAimKeysRef.current);
-    };
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target?.isContentEditable
-      ) {
-        return;
-      }
-
-      const engine = engineRef.current;
-      if (!engine) return;
-
-      const isBowling = inningsRoleRef.current === 'bowling';
-
-      if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
-        e.preventDefault();
-        if (isBowling) {
-          heldAimKeysRef.current.left = true;
-          syncAim();
-        } else if (!e.repeat) {
-          engine.setDirection('leg');
-        }
-      } else if (e.code === 'ArrowUp' || e.code === 'KeyW') {
-        e.preventDefault();
-        if (isBowling) {
-          heldAimKeysRef.current.up = true;
-          syncAim();
-        } else if (!e.repeat) {
-          engine.setDirection('straight');
-        }
-      } else if (e.code === 'ArrowRight' || e.code === 'KeyD') {
-        e.preventDefault();
-        if (isBowling) {
-          heldAimKeysRef.current.right = true;
-          syncAim();
-        } else if (!e.repeat) {
-          engine.setDirection('off');
-        }
-      } else if (e.code === 'ArrowDown' || e.code === 'KeyS') {
-        if (isBowling) {
-          e.preventDefault();
-          heldAimKeysRef.current.down = true;
-          syncAim();
-        }
-      } else if (e.code === 'Space' && !e.repeat) {
-        e.preventDefault();
-        engine.triggerSwing();
-      } else if (e.code === 'KeyC' && !e.repeat) {
-        e.preventDefault();
-        handleCycleCamera();
-      }
-    };
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
-        heldAimKeysRef.current.left = false;
-      } else if (e.code === 'ArrowRight' || e.code === 'KeyD') {
-        heldAimKeysRef.current.right = false;
-      } else if (e.code === 'ArrowUp' || e.code === 'KeyW') {
-        heldAimKeysRef.current.up = false;
-      } else if (e.code === 'ArrowDown' || e.code === 'KeyS') {
-        heldAimKeysRef.current.down = false;
-      }
-      syncAim();
-    };
-
-    const handleBlur = () => {
-      heldAimKeysRef.current = {
-        left: false,
-        right: false,
-        up: false,
-        down: false,
-      };
-      syncAim();
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    window.addEventListener('blur', handleBlur);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-      window.removeEventListener('blur', handleBlur);
-    };
-  }, [handleCycleCamera]);
 
   const handleSelectDirection = useCallback((dir: ShotDirection) => {
     engineRef.current?.setDirection(dir);
@@ -465,10 +398,6 @@ export default function App() {
     engineRef.current?.finishDrsReviewNow();
   }, []);
 
-  const handleClearLeaderboard = useCallback(() => {
-    setLeaderboardEntries(clearLeaderboard());
-  }, []);
-
   const handleToggleMute = useCallback(() => {
     setMuted((prev) => {
       const next = !prev;
@@ -501,10 +430,16 @@ export default function App() {
           oversCount={hud.oversCount}
           playerProfile={playerProfile}
           leaderboardCount={leaderboardEntries.length}
+          userDisplayName={
+            user ? user.displayName || user.email || 'Player' : null
+          }
+          authBusy={authBusy}
           onChangeOvers={handleChangeOvers}
           onCompleteToss={handleCompleteToss}
           onOpenCustomizer={() => setCustomizerOpen(true)}
           onOpenLeaderboard={() => setLeaderboardOpen(true)}
+          onSignIn={signIn}
+          onSignOut={signOutUser}
         />
       )}
 
@@ -516,7 +451,7 @@ export default function App() {
           leaderboardCount={leaderboardEntries.length}
           onChangeProfile={handleChangeProfile}
           onChangeCommentaryStyle={handleChangeCommentaryStyle}
-          onEnterStadium={() => setCustomizerOpen(false)}
+          onEnterStadium={handleSaveKitAndClose}
           onOpenLeaderboard={() => setLeaderboardOpen(true)}
         />
       )}
@@ -579,12 +514,16 @@ export default function App() {
         onSwing={handleSwing}
       />
 
-      {/* DevFest Stage Top Scorers Leaderboard Modal */}
+      {/* Top Scorers Leaderboard Modal (Cloud Firestore + Local Fallback) */}
       <LeaderboardModal
         isOpen={leaderboardOpen}
         entries={leaderboardEntries}
+        isSignedIn={Boolean(user)}
+        currentUserUid={user?.uid ?? null}
         onClose={() => setLeaderboardOpen(false)}
-        onClear={handleClearLeaderboard}
+        onClearLocal={clearLocalBoard}
+        onDeleteCloudEntry={removeCloudEntry}
+        onSignIn={signIn}
       />
     </main>
   );
